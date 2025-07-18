@@ -96,8 +96,8 @@ function App() {
                 <RecordDetails data={zenginData} />
               </div>
               <div className="lg:col-span-2">
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold mb-4">データレコード一覧</h3>
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                  <h3 className="text-lg font-bold mb-6 text-gray-900 border-b border-gray-200 pb-2">📋 データレコード一覧</h3>
                   <DataTable data={zenginData} />
                 </div>
               </div>

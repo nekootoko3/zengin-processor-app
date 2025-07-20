@@ -1,34 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
-  getFilteredRowModel,
   flexRender,
   type ColumnDef,
   type SortingState,
-  type FilterFn,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import type { DataRecord, ZenginData } from "../types/zengin";
-import {
-  formatAmount,
-  getAccountTypeName,
-  getTransferResultName,
-} from "../lib/utils/fieldUtils";
+import { formatAmount, getAccountTypeName } from "../lib/utils/fieldUtils";
 
 interface DataTableProps {
   data: ZenginData;
+  onDataUpdate: (updatedData: DataRecord[]) => void;
 }
 
-const fuzzyFilter: FilterFn<DataRecord> = (row, columnId, value) => {
-  const itemValue = row.getValue(columnId) as string;
-  return itemValue.toLowerCase().includes(value.toLowerCase());
-};
-
-export const DataTable: React.FC<DataTableProps> = ({ data }) => {
+export const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+  const [tableData, setTableData] = useState<DataRecord[]>(data.data);
+
+  useEffect(() => {
+    setTableData(data.data);
+  }, [data.data]);
+
+  const handleTransferResultChange = (rowIndex: number, newValue: string) => {
+    const updatedData = [...tableData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      transferResultCode: newValue as "0" | "1" | "2" | "3" | "4" | "8" | "9",
+    };
+    setTableData(updatedData);
+    onDataUpdate(updatedData);
+  };
 
   const columns: ColumnDef<DataRecord>[] = [
     {
@@ -132,37 +136,38 @@ export const DataTable: React.FC<DataTableProps> = ({ data }) => {
       header: "振替結果",
       cell: (info) => {
         const code = info.getValue() as string;
-        const name = getTransferResultName(code);
-        const colorClass =
-          code === "0"
-            ? "bg-green-100 text-green-800 border-green-200"
-            : code === "1"
-            ? "bg-red-100 text-red-800 border-red-200"
-            : "bg-yellow-100 text-yellow-800 border-yellow-200";
+        const rowIndex = info.row.index;
+
         return (
-          <span
-            className={`px-2 py-1 rounded-md text-xs font-medium border ${colorClass}`}
+          <select
+            value={code}
+            onChange={(e) =>
+              handleTransferResultChange(rowIndex, e.target.value)
+            }
+            className="px-2 py-1 border border-gray-300 rounded-md text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {name}
-          </span>
+            <option value="0">振替済</option>
+            <option value="1">資金不足</option>
+            <option value="2">取引なし</option>
+            <option value="3">預金者の都合による振替停止</option>
+            <option value="4">預金口座振替依頼書なし</option>
+            <option value="8">委託者の都合による振替停止</option>
+            <option value="9">その他</option>
+          </select>
         );
       },
     },
   ];
 
   const table = useReactTable({
-    data: data.data,
+    data: tableData,
     columns,
     state: {
       sorting,
-      globalFilter,
     },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    globalFilterFn: fuzzyFilter,
   });
 
   return (

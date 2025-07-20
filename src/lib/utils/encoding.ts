@@ -91,3 +91,54 @@ export function convertToHalfWidth(text: string): string {
     return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
   });
 }
+
+// Shift-JISエンコーディングテーブル
+const SHIFT_JIS_TABLE: { [key: string]: number } = {
+  // 半角カタカナ
+  'ｱ': 0xB1, 'ｲ': 0xB2, 'ｳ': 0xB3, 'ｴ': 0xB4, 'ｵ': 0xB5,
+  'ｶ': 0xB6, 'ｷ': 0xB7, 'ｸ': 0xB8, 'ｹ': 0xB9, 'ｺ': 0xBA,
+  'ｻ': 0xBB, 'ｼ': 0xBC, 'ｽ': 0xBD, 'ｾ': 0xBE, 'ｿ': 0xBF,
+  'ﾀ': 0xC0, 'ﾁ': 0xC1, 'ﾂ': 0xC2, 'ﾃ': 0xC3, 'ﾄ': 0xC4,
+  'ﾅ': 0xC5, 'ﾆ': 0xC6, 'ﾇ': 0xC7, 'ﾈ': 0xC8, 'ﾉ': 0xC9,
+  'ﾊ': 0xCA, 'ﾋ': 0xCB, 'ﾌ': 0xCC, 'ﾍ': 0xCD, 'ﾎ': 0xCE,
+  'ﾏ': 0xCF, 'ﾐ': 0xD0, 'ﾑ': 0xD1, 'ﾒ': 0xD2, 'ﾓ': 0xD3,
+  'ﾔ': 0xD4, 'ﾕ': 0xD5, 'ﾖ': 0xD6, 'ﾗ': 0xD7, 'ﾘ': 0xD8,
+  'ﾙ': 0xD9, 'ﾚ': 0xDA, 'ﾛ': 0xDB, 'ﾜ': 0xDC, 'ﾝ': 0xDD,
+  'ﾞ': 0xDE, 'ﾟ': 0xDF,
+  // 特殊文字
+  'ｰ': 0xB0, // 長音記号
+  'ー': 0xB0, // 全角長音記号 -> 半角に変換
+};
+
+// Shift-JISエンコーディングでファイルを出力する関数
+export function encodeShiftJIS(text: string): Uint8Array {
+  const bytes: number[] = [];
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const code = char.charCodeAt(0);
+    
+    // ASCII文字
+    if (code <= 0x7F) {
+      bytes.push(code);
+    }
+    // 半角カタカナ
+    else if (code >= 0xFF61 && code <= 0xFF9F) {
+      bytes.push(code - 0xFF61 + 0xA1);
+    }
+    // 特殊変換テーブル
+    else if (SHIFT_JIS_TABLE[char]) {
+      bytes.push(SHIFT_JIS_TABLE[char]);
+    }
+    // その他の文字（全角文字など）
+    else {
+      // 簡易的なShift-JIS変換（主要な漢字・ひらがな・カタカナ）
+      // 実際の変換は複雑なため、完全な変換にはiconv-lite等が必要
+      // ここではスペースに置き換え
+      bytes.push(0x20); // スペース
+      bytes.push(0x20); // 2バイト文字のため
+    }
+  }
+  
+  return new Uint8Array(bytes);
+}

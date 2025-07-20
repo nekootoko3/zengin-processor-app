@@ -1,19 +1,20 @@
-import { useState } from 'react';
-import { FileUploader } from './components/FileUploader';
-import { DataTable } from './components/DataTable';
-import { RecordDetails } from './components/RecordDetails';
-import { parseZenginFile } from './lib/parser/zenginParser';
-import type { ZenginData, ParseError } from './types/zengin';
+import { useState } from "react";
+import { FileUploader } from "./components/FileUploader";
+import { DataTable } from "./components/DataTable";
+import { RecordDetails } from "./components/RecordDetails";
+import { parseZenginFile } from "./lib/parser/zenginParser";
+import { downloadZenginFile } from "./lib/utils/zenginExporter";
+import type { ZenginData, ParseError, DataRecord } from "./types/zengin";
 
 function App() {
   const [zenginData, setZenginData] = useState<ZenginData | null>(null);
   const [errors, setErrors] = useState<ParseError[]>([]);
-  const [fileName, setFileName] = useState<string>('');
+  const [fileName, setFileName] = useState<string>("");
 
   const handleFileLoaded = (content: string, fileName: string) => {
     setFileName(fileName);
     setErrors([]);
-    
+
     const result = parseZenginFile(content);
     if (result.success && result.data) {
       setZenginData(result.data);
@@ -26,7 +27,51 @@ function App() {
   const handleReset = () => {
     setZenginData(null);
     setErrors([]);
-    setFileName('');
+    setFileName("");
+  };
+
+  const handleDataUpdate = (updatedData: DataRecord[]) => {
+    if (!zenginData) return;
+
+    // 振替結果に基づいて集計を再計算
+    const transferredRecords = updatedData.filter(
+      (record) => record.transferResultCode === "0"
+    );
+    const nonTransferredRecords = updatedData.filter(
+      (record) => record.transferResultCode !== "0"
+    );
+
+    const transferredCount = transferredRecords.length;
+    const transferredAmount = transferredRecords.reduce(
+      (sum, record) => sum + record.debitAmount,
+      0
+    );
+    const nonTransferredCount = nonTransferredRecords.length;
+    const nonTransferredAmount = nonTransferredRecords.reduce(
+      (sum, record) => sum + record.debitAmount,
+      0
+    );
+
+    const updatedZenginData: ZenginData = {
+      ...zenginData,
+      data: updatedData,
+      trailer: {
+        ...zenginData.trailer,
+        transferredCount,
+        transferredAmount,
+        nonTransferredCount,
+        nonTransferredAmount,
+      },
+    };
+
+    setZenginData(updatedZenginData);
+  };
+
+  const handleExport = async () => {
+    if (!zenginData) return;
+
+    const exportFileName = fileName.replace(/\.[^/.]+$/, "_result.txt");
+    await downloadZenginFile(zenginData, exportFileName);
   };
 
   return (
@@ -83,12 +128,20 @@ function App() {
                   {zenginData.data.length} 件のデータレコード
                 </p>
               </div>
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                別のファイルを選択
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleExport}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                >
+                  📁 全銀ファイルをエクスポート
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                >
+                  別のファイルを選択
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -97,8 +150,13 @@ function App() {
               </div>
               <div className="lg:col-span-2">
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                  <h3 className="text-lg font-bold mb-6 text-gray-900 border-b border-gray-200 pb-2">📋 データレコード一覧</h3>
-                  <DataTable data={zenginData} />
+                  <h3 className="text-lg font-bold mb-6 text-gray-900 border-b border-gray-200 pb-2">
+                    📋 データレコード一覧
+                  </h3>
+                  <DataTable
+                    data={zenginData}
+                    onDataUpdate={handleDataUpdate}
+                  />
                 </div>
               </div>
             </div>
@@ -109,4 +167,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

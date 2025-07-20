@@ -64,15 +64,33 @@ export function exportZenginFormat(data: ZenginData): string {
     lines.push(dataLine);
   });
 
+  // 振替結果を集計
+  let transferredCount = 0;
+  let transferredAmount = 0;
+  let nonTransferredCount = 0;
+  let nonTransferredAmount = 0;
+
+  data.data.forEach((record) => {
+    if (record.transferResultCode === "0") {
+      // 振替済み
+      transferredCount++;
+      transferredAmount += record.debitAmount;
+    } else {
+      // 振替不能
+      nonTransferredCount++;
+      nonTransferredAmount += record.debitAmount;
+    }
+  });
+
   // トレーラレコード
   const trailerLine = [
     "8", // データ区分 N(1)
-    data.trailer.totalCount.toString().padStart(6, "0"), // 合計件数 N(6) - 右詰「0」
-    data.trailer.totalAmount.toString().padStart(12, "0"), // 合計金額 N(12) - 右詰「0」
-    data.trailer.transferredCount.toString().padStart(6, "0"), // 振替済件数 N(6) - 右詰「0」
-    data.trailer.transferredAmount.toString().padStart(12, "0"), // 振替済金額 N(12) - 右詰「0」
-    data.trailer.nonTransferredCount.toString().padStart(6, "0"), // 振替不能件数 N(6) - 右詰「0」
-    data.trailer.nonTransferredAmount.toString().padStart(12, "0"), // 振替不能金額 N(12) - 右詰「0」
+    data.data.length.toString().padStart(6, "0"), // 合計件数 N(6) - 右詰「0」
+    data.data.reduce((sum, record) => sum + record.debitAmount, 0).toString().padStart(12, "0"), // 合計金額 N(12) - 右詰「0」
+    transferredCount.toString().padStart(6, "0"), // 振替済件数 N(6) - 右詰「0」
+    transferredAmount.toString().padStart(12, "0"), // 振替済金額 N(12) - 右詰「0」
+    nonTransferredCount.toString().padStart(6, "0"), // 振替不能件数 N(6) - 右詰「0」
+    nonTransferredAmount.toString().padStart(12, "0"), // 振替不能金額 N(12) - 右詰「0」
     padToLength("", 65), // ダミー C(65)
   ].join("");
 

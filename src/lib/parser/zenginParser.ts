@@ -1,20 +1,40 @@
-import type { ZenginData, ParseResult, ParseError } from '../../types/zengin';
-import { parseHeader } from './headerParser';
-import { parseData } from './dataParser';
-import { parseTrailer } from './trailerParser';
-import { parseEnd } from './endParser';
+import type { ZenginData, ParseResult, ParseError } from "../../types/zengin";
+import { parseHeader } from "./headerParser";
+import { parseData } from "./dataParser";
+import { parseTrailer } from "./trailerParser";
+import { parseEnd } from "./endParser";
 
 export function parseZenginFile(content: string): ParseResult {
-  const lines = content.split(/\r?\n/).filter(line => line.length > 0);
+  // 改行コードを含むデータなら改行で分割、そうでなければ固定長で分割
+  let lines: string[] = [];
+  if (
+    content.includes("\r\n") ||
+    content.includes("\r") ||
+    content.includes("\n")
+  ) {
+    lines = content
+      .replaceAll("\r\n", "\n")
+      .replaceAll("\r", "\n")
+      .split("\n")
+      .filter((line) => line.length > 0);
+  } else {
+    // 全銀フォーマットのレコードは120文字固定長
+    const ZENGIN_LINE_LENGTH = 120;
+    lines = content.match(new RegExp(`.{${ZENGIN_LINE_LENGTH}}`, "g")) ?? [];
+  }
+
   const errors: ParseError[] = [];
-  
+
   if (lines.length < 4) {
     return {
       success: false,
-      errors: [{
-        line: 0,
-        message: 'ファイルには最低4行（ヘッダー、データ、トレーラ、エンド）が必要です'
-      }]
+      errors: [
+        {
+          line: 0,
+          message:
+            "ファイルには最低4行（ヘッダー、データ、トレーラ、エンド）が必要です",
+        },
+      ],
     };
   }
 
@@ -26,13 +46,13 @@ export function parseZenginFile(content: string): ParseResult {
 
     const dataRecords = [];
     let lineNumber = 2;
-    
+
     while (lineNumber <= lines.length - 2) {
       const line = lines[lineNumber - 1];
-      if (!line || line.charAt(0) === '8' || line.charAt(0) === '9') {
+      if (!line || line.charAt(0) === "8" || line.charAt(0) === "9") {
         break;
       }
-      
+
       const dataResult = parseData(line, lineNumber);
       if (dataResult.success && dataResult.data) {
         dataRecords.push(dataResult.data);
@@ -61,7 +81,7 @@ export function parseZenginFile(content: string): ParseResult {
     if (!headerResult.data || !trailerResult.data || !endResult.data) {
       return {
         success: false,
-        errors: [{ line: 0, message: 'レコードの解析に失敗しました' }]
+        errors: [{ line: 0, message: "レコードの解析に失敗しました" }],
       };
     }
 
@@ -69,7 +89,7 @@ export function parseZenginFile(content: string): ParseResult {
       header: headerResult.data,
       data: dataRecords,
       trailer: trailerResult.data,
-      end: endResult.data
+      end: endResult.data,
     };
 
     const validationErrors = validateZenginData(data);
@@ -81,10 +101,14 @@ export function parseZenginFile(content: string): ParseResult {
   } catch (error) {
     return {
       success: false,
-      errors: [{
-        line: 0,
-        message: `解析エラー: ${error instanceof Error ? error.message : '不明なエラー'}`
-      }]
+      errors: [
+        {
+          line: 0,
+          message: `解析エラー: ${
+            error instanceof Error ? error.message : "不明なエラー"
+          }`,
+        },
+      ],
     };
   }
 }
@@ -95,15 +119,18 @@ function validateZenginData(data: ZenginData): ParseError[] {
   if (data.trailer.totalCount !== data.data.length) {
     errors.push({
       line: 0,
-      message: `合計件数が一致しません。トレーラ: ${data.trailer.totalCount}, 実際: ${data.data.length}`
+      message: `合計件数が一致しません。トレーラ: ${data.trailer.totalCount}, 実際: ${data.data.length}`,
     });
   }
 
-  const actualTotalAmount = data.data.reduce((sum, record) => sum + record.debitAmount, 0);
+  const actualTotalAmount = data.data.reduce(
+    (sum, record) => sum + record.debitAmount,
+    0
+  );
   if (data.trailer.totalAmount !== actualTotalAmount) {
     errors.push({
       line: 0,
-      message: `合計金額が一致しません。トレーラ: ${data.trailer.totalAmount}, 実際: ${actualTotalAmount}`
+      message: `合計金額が一致しません。トレーラ: ${data.trailer.totalAmount}, 実際: ${actualTotalAmount}`,
     });
   }
 
